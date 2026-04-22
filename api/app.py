@@ -19,7 +19,7 @@ app = Flask(__name__)
 # -----------------------
 # CONFIG
 # -----------------------
-UPLOAD_FOLDER = "uploads"
+UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
@@ -54,6 +54,11 @@ def get_gradcam(filename):
 @app.route("/")
 def home():
     return jsonify({"message": "Medical AI API is running"})
+
+
+@app.route("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.route("/predict", methods=["POST"])

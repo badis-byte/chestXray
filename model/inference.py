@@ -15,6 +15,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Update this path if needed
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "resnet18_best.pth")
 
+
 # Class names (must match training folder names EXACTLY)
 CLASS_NAMES = ["NORMAL", "PNEUMONIA"]
 
@@ -84,6 +85,6 @@ def predict(image_path):
 # TEST RUN (optional)
 # -----------------------
 if __name__ == "__main__":
-    test_image = "IM-0001-0001.jpeg"  # replace with your image path
+    test_image = "IM-0001-0001.jpeg" 
     result = predict(test_image)
     print(result)
