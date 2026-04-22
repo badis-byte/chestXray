@@ -2,7 +2,7 @@ gunicorn
 torch==2.2.2
 torchvision==0.17.2
 flask
-numpy
+numpy==1.26.4
 pillow
 scikit-learn
 werkzeug
