@@ -1,0 +1,11 @@
+gunicorn
+torch
+torchvision
+flask
+numpy
+pillow
+matplotlib
+scikit-learn
+werkzeug
+torch
+opencv-python
