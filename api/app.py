@@ -1,5 +1,7 @@
 # app.py
+import logging
 import os
+import time
 import uuid
 
 from flask import Flask, jsonify, request, send_file, url_for
@@ -7,7 +9,13 @@ from werkzeug.utils import secure_filename
 
 from api.logger import log_event
 from model.gradcam import generate_gradcam
-from model.inference import predict
+from model.inference import get_model, predict
+
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -18,6 +26,15 @@ UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+
+def warm_up_model():
+    start = time.perf_counter()
+    get_model()
+    logger.info("Model warm-up completed in %.2fs", time.perf_counter() - start)
+
+
+warm_up_model()
 
 # -----------------------
 # HELPERS
@@ -58,6 +75,8 @@ def health():
 
 @app.route("/predict", methods=["POST"])
 def predict_route():
+    request_started_at = time.perf_counter()
+
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -71,12 +90,25 @@ def predict_route():
         filename = str(uuid.uuid4()) + "_" + filename
         filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-
         file.save(filepath)
+        logger.info("Saved upload to %s", filepath)
 
         try:
+            predict_started_at = time.perf_counter()
             result = predict(filepath)
+            logger.info(
+                "Prediction finished in %.2fs for %s",
+                time.perf_counter() - predict_started_at,
+                filename,
+            )
+
+            gradcam_started_at = time.perf_counter()
             gradcam_path = generate_gradcam(filepath)
+            logger.info(
+                "Grad-CAM finished in %.2fs for %s",
+                time.perf_counter() - gradcam_started_at,
+                filename,
+            )
 
             response = {
                 "prediction": result["prediction"],
@@ -89,10 +121,16 @@ def predict_route():
                 ),
             }
             log_event(response)
+            logger.info(
+                "Request completed in %.2fs for %s",
+                time.perf_counter() - request_started_at,
+                filename,
+            )
 
             return jsonify(response)
 
         except Exception as e:
+            logger.exception("Prediction request failed for %s", filename)
             return jsonify({"error": str(e)}), 500
 
     return jsonify({"error": "Invalid file type"}), 400
