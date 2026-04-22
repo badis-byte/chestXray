@@ -6,5 +6,4 @@ numpy==1.26.4
 pillow
 scikit-learn
 werkzeug
-torch
 opencv-python-headless

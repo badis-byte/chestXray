@@ -1,67 +1,65 @@
-# gradcam.py
+import os
 
-import torch
-import numpy as np
 import cv2
-from torchvision import models
+import numpy as np
+import torch
 from PIL import Image
-from model.inference import get_model, inference_transform, DEVICE
 
-# Hook storage
-gradients = None
-activations = None
-
-def backward_hook(module, grad_in, grad_out):
-    global gradients
-    gradients = grad_out[0]
-
-def forward_hook(module, input, output):
-    global activations
-    activations = output
-
-
-# Attach hooks to last conv layer of ResNet18
-target_layer = model.layer4[-1]
-target_layer.register_forward_hook(forward_hook)
-target_layer.register_backward_hook(backward_hook)
+from model.inference import DEVICE, get_model, inference_transform
 
 
 def generate_gradcam(image_path):
-    global gradients, activations
     model = get_model()
+    gradients = None
+    activations = None
 
-    image = Image.open(image_path).convert("RGB")
-    input_tensor = inference_transform(image).unsqueeze(0).to(DEVICE)
+    def forward_hook(_, __, output):
+        nonlocal activations
+        activations = output.detach()
 
-    # Forward
-    output = model(input_tensor)
-    pred_class = output.argmax(dim=1)
+    def backward_hook(_, grad_input, grad_output):
+        nonlocal gradients
+        gradients = grad_output[0].detach()
 
-    # Backward
-    model.zero_grad()
-    score = output[0, pred_class]
-    score.backward()
+    target_layer = model.layer4[-1]
+    forward_handle = target_layer.register_forward_hook(forward_hook)
+    backward_handle = target_layer.register_full_backward_hook(backward_hook)
 
-    # Compute weights
-    pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
-    activations_ = activations.squeeze(0)
+    try:
+        image = Image.open(image_path).convert("RGB")
+        input_tensor = inference_transform(image).unsqueeze(0).to(DEVICE)
 
-    for i in range(len(pooled_gradients)):
-        activations_[i, :, :] *= pooled_gradients[i]
+        output = model(input_tensor)
+        pred_class = output.argmax(dim=1).item()
 
-    heatmap = torch.mean(activations_, dim=0).cpu().detach().numpy()
-    heatmap = np.maximum(heatmap, 0)
-    heatmap /= np.max(heatmap) + 1e-8
+        model.zero_grad(set_to_none=True)
+        output[0, pred_class].backward()
 
-    # Convert to image
-    img = cv2.imread(image_path)
-    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
-    heatmap = np.uint8(255 * heatmap)
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+        if gradients is None or activations is None:
+            raise RuntimeError("Grad-CAM hooks did not capture model state.")
 
-    superimposed_img = heatmap * 0.4 + img
+        pooled_gradients = gradients.mean(dim=[0, 2, 3])
+        weighted_activations = activations.squeeze(0).clone()
+        weighted_activations *= pooled_gradients[:, None, None]
 
-    output_path = image_path.replace(".", "_gradcam.")
-    cv2.imwrite(output_path, superimposed_img)
+        heatmap = weighted_activations.mean(dim=0).clamp(min=0).cpu().numpy()
+        if heatmap.max() > 0:
+            heatmap /= heatmap.max()
 
-    return output_path
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(f"Unable to read image at {image_path}")
+
+        heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+        heatmap = np.uint8(255 * heatmap)
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+        superimposed_img = np.clip((heatmap * 0.4) + img, 0, 255).astype(np.uint8)
+
+        base, ext = os.path.splitext(image_path)
+        output_path = f"{base}_gradcam{ext}"
+        cv2.imwrite(output_path, superimposed_img)
+
+        return output_path
+    finally:
+        forward_handle.remove()
+        backward_handle.remove()

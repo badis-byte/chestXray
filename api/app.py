@@ -1,18 +1,13 @@
 # app.py
-from model.gradcam import generate_gradcam
-from api.logger import log_event
-
-import sys
 import os
+import uuid
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "model")))
-from inference import predict
-
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, jsonify, request, send_file, url_for
 from werkzeug.utils import secure_filename
 
-# Import your inference function
-from inference import predict
+from api.logger import log_event
+from model.gradcam import generate_gradcam
+from model.inference import predict
 
 app = Flask(__name__)
 
@@ -73,7 +68,9 @@ def predict_route():
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
+        filename = str(uuid.uuid4()) + "_" + filename
         filepath = os.path.join(UPLOAD_FOLDER, filename)
+
 
         file.save(filepath)
 
@@ -85,7 +82,11 @@ def predict_route():
                 "prediction": result["prediction"],
                 "confidence": result["confidence"],
                 "explanation": generate_explanation(result["prediction"]),
-                "gradcam_image": request.host_url + "gradcam/" + filename
+                "gradcam_image": url_for(
+                    "get_gradcam",
+                    filename=os.path.basename(gradcam_path),
+                    _external=True,
+                ),
             }
             log_event(response)
 
@@ -101,4 +102,8 @@ def predict_route():
 # RUN
 # -----------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False,
+    )
