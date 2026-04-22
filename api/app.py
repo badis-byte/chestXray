@@ -43,6 +43,10 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def wants_gradcam(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def generate_explanation(prediction):
     """
     Simple rule-based explanation (Digital Health Insight Layer)
@@ -102,23 +106,30 @@ def predict_route():
                 filename,
             )
 
+            gradcam_url = None
+            include_gradcam = wants_gradcam(request.form.get("include_gradcam"))
             gradcam_started_at = time.perf_counter()
-            gradcam_path = generate_gradcam(filepath)
-            logger.info(
-                "Grad-CAM finished in %.2fs for %s",
-                time.perf_counter() - gradcam_started_at,
-                filename,
-            )
+            if include_gradcam:
+                gradcam_path = generate_gradcam(filepath)
+                gradcam_url = url_for(
+                    "get_gradcam",
+                    filename=os.path.basename(gradcam_path),
+                    _external=True,
+                )
+                logger.info(
+                    "Grad-CAM finished in %.2fs for %s",
+                    time.perf_counter() - gradcam_started_at,
+                    filename,
+                )
+            else:
+                logger.info("Grad-CAM skipped for %s", filename)
 
             response = {
                 "prediction": result["prediction"],
                 "confidence": result["confidence"],
                 "explanation": generate_explanation(result["prediction"]),
-                "gradcam_image": url_for(
-                    "get_gradcam",
-                    filename=os.path.basename(gradcam_path),
-                    _external=True,
-                ),
+                "gradcam_requested": include_gradcam,
+                "gradcam_image": gradcam_url,
             }
             log_event(response)
             logger.info(

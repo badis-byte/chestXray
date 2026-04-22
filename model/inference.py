@@ -11,6 +11,11 @@ import os
 # -----------------------
 IMG_SIZE = 224
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+TORCH_NUM_THREADS = int(os.environ.get("TORCH_NUM_THREADS", "1"))
+
+if DEVICE.type == "cpu":
+    torch.set_num_threads(TORCH_NUM_THREADS)
+    torch.set_num_interop_threads(1)
 
 # Update this path if needed
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "resnet18_best.pth")
@@ -34,7 +39,7 @@ inference_transform = transforms.Compose([
 # LOAD MODEL
 # -----------------------
 def load_model():
-    model = models.resnet18(pretrained=False)
+    model = models.resnet18(weights=None)
 
     # Replace final layer (must match training)
     num_features = model.fc.in_features
@@ -73,7 +78,7 @@ def predict(image_path):
     image = inference_transform(image).unsqueeze(0).to(DEVICE)
 
     # Forward pass
-    with torch.no_grad():
+    with torch.inference_mode():
         outputs = model(image)
         probabilities = torch.softmax(outputs, dim=1)
         confidence, predicted = torch.max(probabilities, 1)
