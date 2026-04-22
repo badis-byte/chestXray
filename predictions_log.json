@@ -1,0 +1,20 @@
+[
+    {
+        "timestamp": "2026-04-22T15:17:57.847531",
+        "data": {
+            "prediction": "PNEUMONIA",
+            "confidence": 0.9494,
+            "explanation": "Model detected lung opacity patterns consistent with possible pneumonia. Clinical follow-up is recommended.",
+            "gradcam_image": "uploads\\person1_virus_6_gradcam.jpeg"
+        }
+    },
+    {
+        "timestamp": "2026-04-22T15:19:33.956937",
+        "data": {
+            "prediction": "NORMAL",
+            "confidence": 0.692,
+            "explanation": "No significant abnormal lung patterns detected. Result appears within normal range.",
+            "gradcam_image": "uploads\\IM-0001-0001_gradcam.jpeg"
+        }
+    }
+]
