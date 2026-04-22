@@ -48,7 +48,13 @@ def load_model():
 
 
 # Load once globally (efficient for API)
-model = load_model()
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        model = load_model()
+    return model
 
 
 # -----------------------
@@ -59,7 +65,7 @@ def predict(image_path):
     Input: path to image
     Output: dict with prediction + confidence
     """
-
+    model= get_model()
     # Load image
     image = Image.open(image_path).convert("RGB")
 

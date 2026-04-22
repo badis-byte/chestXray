@@ -85,7 +85,7 @@ def predict_route():
                 "prediction": result["prediction"],
                 "confidence": result["confidence"],
                 "explanation": generate_explanation(result["prediction"]),
-                "gradcam_image": gradcam_path
+                "gradcam_image": request.host_url + "gradcam/" + filename
             }
             log_event(response)
 

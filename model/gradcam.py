@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 from torchvision import models
 from PIL import Image
-from model.inference import model, inference_transform, DEVICE
+from model.inference import get_model, inference_transform, DEVICE
 
 # Hook storage
 gradients = None
@@ -28,6 +28,7 @@ target_layer.register_backward_hook(backward_hook)
 
 def generate_gradcam(image_path):
     global gradients, activations
+    model = get_model()
 
     image = Image.open(image_path).convert("RGB")
     input_tensor = inference_transform(image).unsqueeze(0).to(DEVICE)
@@ -38,7 +39,8 @@ def generate_gradcam(image_path):
 
     # Backward
     model.zero_grad()
-    output[0, pred_class].backward()
+    score = output[0, pred_class]
+    score.backward()
 
     # Compute weights
     pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
